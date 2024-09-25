@@ -44,6 +44,7 @@ namespace neurobit {
     //% weight=49 
     //% block="EMG"
     export function emg(): number {
+        // Check switch here
         return pins.analogReadPin(AnalogPin.P0);
     }
 
@@ -125,8 +126,9 @@ namespace neurobit {
 
         // Smoothing function for signal
         function movingAverage(data: number[], windowSize: number): number {
-            let sum = 0;
+            let sum = 0.0;
             let smoothedData = 0;
+            //overflow -> floating point
             for (let j = 0; j < windowSize; j++) {
                 sum += data[j];
             }
@@ -236,55 +238,28 @@ namespace neurobit {
 
     //% group="EMG"
     //% weight=44
-    //% block="measure reaction time ||add cue $cue add threshold $threshold"
+    //% block="measure reaction time ||with threshold $threshold"
     //% expandableArgumentMode="enable"
     //% threshold.defl=200
-    //% inlineInputMode=inline
-    export function reactionTime(cue?: Cue, threshold?: number) {
-        const cue_time = 100; // [ms]
-        const ms = 1500; // Give user 1.5 seconds to make reaction
-        let signal = 0;
-        let result = ms;
-        let once = true;
-
-        //At beggining, give user a cue if needed
-        switch (cue) {
-            case Cue.none: {
-                break;
-            }
-            case Cue.visual: {
-                basic.showIcon(IconNames.Heart, cue_time);
-                basic.clearScreen();
-                break;
-            }
-            case Cue.audio: {
-                pins.setAudioPin(AnalogPin.P16);
-                music.play(music.tonePlayable(262, cue_time),
-                    music.PlaybackMode.UntilDone)
-                break;
-            }
+    export function reactionTime(threshold?: number) {
+        if (threshold < 0) {
+            return undefined;
         }
+
+        const time_limit = 5000; // Maximum 5 seconds to make reaction
+        let signal = 0;
+        let result_time = 0;
 
         const startTime = control.millis();
 
-        // Begin measuring the reaction time
-        while (control.millis() - startTime < ms) {
+        signal = emg();
+        while (signal < threshold) {
             signal = emg();
-            // (only once) if the signal go above the threshold,
-            // save the reaction time. 
-            if (signal > threshold && once) {
-                result = control.millis() - startTime;
-                once = false;
-            }
+            result_time = control.millis() - startTime;
+            if (result_time > time_limit) return undefined;
         }
 
-        // If user fails to react, return as undefined (question mark)
-        if (result == ms) {
-            return undefined;
-        }
-        else {
-            return result;
-        }
+        return result_time;
     }
 
 
